@@ -36,6 +36,7 @@ func main() {
 	ticker := time.NewTicker(1 * time.Hour)
 	quit := make(chan bool)
 
+	update_ip(db) // run without waiting for first tick, so simple https://github.com/golang/go/issues/17601#issuecomment-307906597
 	for {
 		select {
 		case <-ticker.C:
@@ -76,7 +77,7 @@ func update_ip(db *sql.DB) {
 	var last_ip, date_created string
 	err = db.QueryRow("SELECT ip, date_created FROM ipwatcher ORDER BY id DESC LIMIT 0,1").Scan(&last_ip, &date_created)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == sql.ErrNoRows { // http://go-database-sql.org/errors.html
 			log.Print("no stored ip addresses")
 		} else {
 			log.Fatal(err)
