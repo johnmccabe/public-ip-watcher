@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 
 func main() {
 	log.Print("starting service")
-	db, err := sql.Open("sqlite3", "./ipwatcher.db")
+	db, err := sql.Open("sqlite3", "./db/ipwatcher.db")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -29,8 +30,7 @@ func main() {
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
-		log.Printf("%q: %s\n", err, sqlStmt)
-		return
+		log.Fatalf("%q: %s\n", err, sqlStmt)
 	}
 
 	ticker := time.NewTicker(1 * time.Hour)
@@ -56,19 +56,31 @@ func update_ip(db *sql.DB) {
 
 	resp, err := http.Get("https://icanhazip.com")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Fatalf("failed to get IP address, response code: %d", resp.StatusCode)
+		log.Printf("failed to get IP address, response code: %d", resp.StatusCode)
+		return
 	}
 
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 	cur_ip := strings.TrimSpace(string(b))
+
+	if !validIP(cur_ip) {
+		maxLen := 10
+		if len(cur_ip) < maxLen {
+			maxLen = len(cur_ip)
+		}
+		log.Printf("not a valid ip: %s", sanitise(cur_ip[0:maxLen-1]))
+		return
+	}
 
 	//
 	// Get last detected ip address
@@ -80,7 +92,8 @@ func update_ip(db *sql.DB) {
 		if err == sql.ErrNoRows { // http://go-database-sql.org/errors.html
 			log.Print("no stored ip addresses")
 		} else {
-			log.Fatal(err)
+			log.Print(err)
+			return
 		}
 	}
 
@@ -99,18 +112,32 @@ func update_ip(db *sql.DB) {
 
 	tx, err := db.Begin()
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 	stmt, err := tx.Prepare("insert into ipwatcher(ip) values(?)")
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 	defer stmt.Close()
 	_, err = stmt.Exec(cur_ip)
 	if err != nil {
-		log.Fatal(err)
+		log.Print(err)
+		return
 	}
 	tx.Commit()
 
 	log.Printf("updated public ip, old: %s (%s), new: %s", last_ip, date_created, cur_ip)
+}
+
+func validIP(ip string) bool {
+	re, _ := regexp.Compile(`^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$`)
+	return re.MatchString(ip)
+}
+
+func sanitise(s string) string {
+	// limit valid characters
+	reg, _ := regexp.Compile("[^a-zA-Z0-9<>!#='\"()]+")
+	return reg.ReplaceAllString(s, " ")
 }
