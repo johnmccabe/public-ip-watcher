@@ -33,4 +33,6 @@ USER nonroot:nonroot
 
 VOLUME /db
 
+EXPOSE 8080
+
 ENTRYPOINT ["/ipwatcher"]

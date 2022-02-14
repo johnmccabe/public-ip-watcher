@@ -1,5 +1,5 @@
 # public-ip-watcher
 
 ```
-docker run --rm --name ipwatcher -v db:/db johnmccabe/ipwatcher:dev
+docker run --rm --name ipwatcher -p 8080:8080 -v db:/db johnmccabe/ipwatcher:dev
 ```

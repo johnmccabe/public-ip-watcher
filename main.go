@@ -9,6 +9,7 @@ import (
 )
 
 func main() {
+	configureDefaultLogger()
 	logMultiline(title, " ")
 
 	//
@@ -36,7 +37,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	r.Run("127.0.0.1:8080") // listen and serve on port 8080
+	r.Run(":8080") // listen and serve on port 8080
 
 	wg.Wait()
 }
